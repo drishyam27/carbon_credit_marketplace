@@ -1,332 +1,115 @@
 #![cfg(test)]
 use super::*;
-use soroban_sdk::{testutils::Address as _, Env, String};
+use soroban_sdk::{
+    testutils::{Address as _},
+    token, Address, Env, String,
+};
 
-#[test]
-fn test_create_listing_and_receive_credits() {
+fn setup_test() -> (Env, CarbonMarketplaceClient<'static>, Address, Address, token::Client<'static>, token::StellarAssetClient<'static>) {
     let env = Env::default();
     env.mock_all_auths();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
 
-    let seller = Address::generate(&env);
+    // 1. Create a generic token (e.g., USDC or XLM) for payment
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_client = token::Client::new(&env, &token_contract.address());
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_contract.address());
 
-    // Create listing with 100 tons of carbon credits
-    let listing_id = client.create_listing(
-        &seller,
-        &100i128,
-        &500i128, // 500 XLM per ton
-        &String::from_str(&env, "Amazon Forest Project"),
-        &String::from_str(&env, "Protecting 1000 acres of rainforest"),
-    );
+    // 2. Deploy Carbon Marketplace
+    let contract_id = env.register(CarbonMarketplace, ());
+    let market_client = CarbonMarketplaceClient::new(&env, &contract_id);
 
-    assert_eq!(listing_id, 1);
+    // 3. Initialize Contract with Admin and Token
+    let admin = Address::generate(&env);
+    market_client.init(&admin, &token_client.address);
 
-    let listing = client.get_listing(&listing_id).unwrap();
-    assert_eq!(listing.amount, 100i128);
-    assert_eq!(listing.remaining_amount, 100i128);
-    assert_eq!(listing.price_per_unit, 500i128);
-    assert!(matches!(listing.status, ListingStatus::Active));
-
-    // Seller should have received the credits
-    assert_eq!(client.get_user_credits(&seller), 100i128);
+    (env, market_client, admin, token_admin, token_client, token_admin_client)
 }
 
 #[test]
-fn test_buy_credits_creates_pending_purchase() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
+fn test_successful_purchase_and_escrow() {
+    let (env, market, admin, _, token_client, token_admin) = setup_test();
 
-    let seller = Address::generate(&env);
+    let creator = Address::generate(&env);
     let buyer = Address::generate(&env);
 
-    // Seller creates listing
-    let listing_id = client.create_listing(
-        &seller,
-        &100i128,
-        &500i128,
-        &String::from_str(&env, "Wind Farm Project"),
-        &String::from_str(&env, "50MW wind farm in Texas"),
+    // Mint some test tokens to buyer
+    token_admin.mint(&buyer, &10_000);
+    assert_eq!(token_client.balance(&buyer), 10_000);
+
+    // 1. Creator creates credit
+    let credit_id = market.create_credit(
+        &creator,
+        &String::from_str(&env, "Amazon Reforestation"),
+        &100,
     );
 
-    // Buyer buys 30 tons
-    let purchase_id = client.buy_credits(&buyer, &listing_id, &30i128);
+    // 2. Admin verifies credit
+    market.verify_credit(&admin, &credit_id, &VerificationStatus::Verified);
 
-    assert_eq!(purchase_id, 1);
+    // 3. Creator lists credit
+    let price = 500;
+    market.list_credit(&creator, &credit_id, &price);
 
-    let purchase = client.get_purchase(&purchase_id).unwrap();
-    assert_eq!(purchase.listing_id, listing_id);
-    assert_eq!(purchase.buyer, buyer);
-    assert_eq!(purchase.seller, seller);
-    assert_eq!(purchase.amount, 30i128);
-    assert_eq!(purchase.total_price, 15000i128); // 30 * 500
-    assert!(matches!(purchase.status, PurchaseStatus::Pending));
+    // 4. Buyer purchases credit (funds go to escrow)
+    let purchase_id = market.buy_credit(&buyer, &credit_id);
+    
+    // Check escrow holds funds
+    assert_eq!(token_client.balance(&buyer), 9_500);
+    assert_eq!(token_client.balance(&market.address), 500); // Contract holds the escrow
+    assert_eq!(token_client.balance(&creator), 0);
 
-    // Listing remaining amount should be reduced
-    let listing = client.get_listing(&listing_id).unwrap();
-    assert_eq!(listing.remaining_amount, 70i128);
+    // 5. Buyer confirms delivery (funds go to creator, ownership transfers)
+    market.confirm_delivery(&buyer, &purchase_id);
+
+    // Check final balances
+    assert_eq!(token_client.balance(&market.address), 0);
+    assert_eq!(token_client.balance(&creator), 500); // Creator got paid
+
+    // Check ownership
+    let credit = market.get_credit(&credit_id);
+    assert_eq!(credit.owner_address, buyer);
 }
 
 #[test]
-fn test_deliver_credits_transfers_to_buyer() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
+#[should_panic(expected = "Credit not verified")]
+fn test_cannot_list_unverified() {
+    let (env, market, _admin, _, _, _) = setup_test();
+    let creator = Address::generate(&env);
 
-    let seller = Address::generate(&env);
+    let credit_id = market.create_credit(
+        &creator,
+        &String::from_str(&env, "Fake Project"),
+        &100,
+    );
+
+    market.list_credit(&creator, &credit_id, &500); // Should panic
+}
+
+#[test]
+fn test_cancel_purchase_refunds_escrow() {
+    let (env, market, admin, _, token_client, token_admin) = setup_test();
+
+    let creator = Address::generate(&env);
     let buyer = Address::generate(&env);
+    token_admin.mint(&buyer, &10_000);
 
-    // Seller creates listing
-    let listing_id = client.create_listing(
-        &seller,
-        &100i128,
-        &500i128,
-        &String::from_str(&env, "Solar Project"),
-        &String::from_str(&env, "10MW solar farm"),
-    );
+    let credit_id = market.create_credit(&creator, &String::from_str(&env, "Wind Project"), &100);
+    market.verify_credit(&admin, &credit_id, &VerificationStatus::Verified);
+    market.list_credit(&creator, &credit_id, &500);
 
-    // Buyer buys credits
-    let purchase_id = client.buy_credits(&buyer, &listing_id, &30i128);
+    let purchase_id = market.buy_credit(&buyer, &credit_id);
+    assert_eq!(token_client.balance(&buyer), 9_500);
+    assert_eq!(token_client.balance(&market.address), 500);
 
-    // Check balances before delivery
-    assert_eq!(client.get_user_credits(&seller), 100i128);
-    assert_eq!(client.get_user_credits(&buyer), 0i128);
+    // Seller or buyer can cancel
+    market.cancel_purchase(&creator, &purchase_id);
 
-    // Seller delivers credits
-    client.deliver_credits(&seller, &purchase_id);
-
-    // Check purchase status
-    let purchase = client.get_purchase(&purchase_id).unwrap();
-    assert!(matches!(purchase.status, PurchaseStatus::Delivered));
-
-    // Credits transferred to buyer
-    assert_eq!(client.get_user_credits(&buyer), 30i128);
-    // Seller's balance reduced by delivered amount
-    assert_eq!(client.get_user_credits(&seller), 70i128); // 100 - 30
-}
-
-#[test]
-fn test_confirm_delivery_completes_purchase() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
-
-    let seller = Address::generate(&env);
-    let buyer = Address::generate(&env);
-
-    let listing_id = client.create_listing(
-        &seller,
-        &100i128,
-        &500i128,
-        &String::from_str(&env, "Reforestation"),
-        &String::from_str(&env, "Planting 10,000 trees"),
-    );
-
-    let purchase_id = client.buy_credits(&buyer, &listing_id, &30i128);
-
-    // Seller delivers
-    client.deliver_credits(&seller, &purchase_id);
-
-    // Buyer confirms delivery
-    client.confirm_delivery(&buyer, &purchase_id);
-
-    let purchase = client.get_purchase(&purchase_id).unwrap();
-    assert!(matches!(purchase.status, PurchaseStatus::Confirmed));
-
-    // Credits remain with buyer
-    assert_eq!(client.get_user_credits(&buyer), 30i128);
-}
-
-#[test]
-fn test_cancel_purchase_refunds_buyer() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
-
-    let seller = Address::generate(&env);
-    let buyer = Address::generate(&env);
-
-    let listing_id = client.create_listing(
-        &seller,
-        &100i128,
-        &500i128,
-        &String::from_str(&env, "Ocean Conservation"),
-        &String::from_str(&env, "Protecting marine ecosystems"),
-    );
-
-    let purchase_id = client.buy_credits(&buyer, &listing_id, &30i128);
-
-    // Buyer cancels
-    client.cancel_purchase(&buyer, &purchase_id);
-
-    let purchase = client.get_purchase(&purchase_id).unwrap();
-    assert!(matches!(purchase.status, PurchaseStatus::Cancelled));
-
-    // Listing remaining amount restored
-    let listing = client.get_listing(&listing_id).unwrap();
-    assert_eq!(listing.remaining_amount, 100i128);
-}
-
-#[test]
-#[should_panic(expected = "cannot buy own listing")]
-fn test_cannot_buy_own_listing() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
-
-    let seller = Address::generate(&env);
-
-    let listing_id = client.create_listing(
-        &seller,
-        &100i128,
-        &500i128,
-        &String::from_str(&env, "Test Project"),
-        &String::from_str(&env, "Test"),
-    );
-
-    // Seller tries to buy own listing
-    client.buy_credits(&seller, &listing_id, &30i128);
-}
-
-#[test]
-#[should_panic(expected = "insufficient credits available")]
-fn test_cannot_buy_more_than_available() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
-
-    let seller = Address::generate(&env);
-    let buyer = Address::generate(&env);
-
-    let listing_id = client.create_listing(
-        &seller,
-        &50i128,
-        &500i128,
-        &String::from_str(&env, "Small Project"),
-        &String::from_str(&env, "Only 50 tons"),
-    );
-
-    // Try to buy more than available
-    client.buy_credits(&buyer, &listing_id, &100i128);
-}
-
-#[test]
-#[should_panic(expected = "not the buyer")]
-fn test_cannot_confirm_delivery_as_non_buyer() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
-
-    let seller = Address::generate(&env);
-    let buyer = Address::generate(&env);
-    let attacker = Address::generate(&env);
-
-    let listing_id = client.create_listing(
-        &seller,
-        &100i128,
-        &500i128,
-        &String::from_str(&env, "Test Project"),
-        &String::from_str(&env, "Test"),
-    );
-
-    let purchase_id = client.buy_credits(&buyer, &listing_id, &30i128);
-
-    // Seller delivers
-    client.deliver_credits(&seller, &purchase_id);
-
-    // Attacker tries to confirm (should fail)
-    client.confirm_delivery(&attacker, &purchase_id);
-}
-
-#[test]
-fn test_get_active_listings() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
-
-    let seller1 = Address::generate(&env);
-    let seller2 = Address::generate(&env);
-
-    client.create_listing(
-        &seller1,
-        &100i128,
-        &500i128,
-        &String::from_str(&env, "Project A"),
-        &String::from_str(&env, "Description A"),
-    );
-
-    client.create_listing(
-        &seller2,
-        &200i128,
-        &600i128,
-        &String::from_str(&env, "Project B"),
-        &String::from_str(&env, "Description B"),
-    );
-
-    let listings = client.get_active_listings();
-    assert_eq!(listings.len(), 2);
-}
-
-#[test]
-fn test_get_user_purchases() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
-
-    let seller = Address::generate(&env);
-    let buyer = Address::generate(&env);
-
-    let listing_id = client.create_listing(
-        &seller,
-        &100i128,
-        &500i128,
-        &String::from_str(&env, "Test Project"),
-        &String::from_str(&env, "Test"),
-    );
-
-    client.buy_credits(&buyer, &listing_id, &30i128);
-
-    // Get purchases for buyer
-    let buyer_purchases = client.get_user_purchases(&buyer);
-    assert_eq!(buyer_purchases.len(), 1);
-
-    // Get purchases for seller
-    let seller_purchases = client.get_user_purchases(&seller);
-    assert_eq!(seller_purchases.len(), 1);
-}
-
-#[test]
-fn test_listing_completes_when_all_sold() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
-
-    let seller = Address::generate(&env);
-    let buyer = Address::generate(&env);
-
-    let listing_id = client.create_listing(
-        &seller,
-        &100i128,
-        &500i128,
-        &String::from_str(&env, "Full Sale Project"),
-        &String::from_str(&env, "All credits sold"),
-    );
-
-    // Buy all credits
-    client.buy_credits(&buyer, &listing_id, &100i128);
-
-    let listing = client.get_listing(&listing_id).unwrap();
-    assert_eq!(listing.remaining_amount, 0i128);
-    assert!(matches!(listing.status, ListingStatus::Completed));
+    // Funds refunded to buyer
+    assert_eq!(token_client.balance(&buyer), 10_000);
+    assert_eq!(token_client.balance(&market.address), 0);
+    
+    // Credit is automatically relisted
+    let credit = market.get_credit(&credit_id);
+    assert!(credit.is_listed);
 }
