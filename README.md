@@ -336,8 +336,7 @@ The application parses raw, low-level error codes from the Stellar Horizon node 
 <img width="717" height="1600" alt="WhatsApp Image 2026-04-29 at 8 57 19 PM" src="https://github.com/user-attachments/assets/3e7f7a50-78f0-4811-9820-bba4dae068ec" />
 
 ### Vercel Web Analytics Dashboard
-*(Paste your Vercel Web Analytics dashboard screenshot below after deployment)*
-<!-- <img width="1920" height="1080" alt="Vercel Web Analytics Dashboard" src="YOUR_VERCEL_ANALYTICS_SCREENSHOT_LINK" /> -->
+<img width="1920" height="1080" alt="Vercel Web Analytics Dashboard" src="./vercel-analytics.png" />
 
 ---
 
