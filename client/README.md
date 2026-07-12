@@ -1,36 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🍃 Carbon Credit Marketplace Client
 
-## Getting Started
+This is the Next.js frontend application for the Carbon Credit Marketplace, interfacing with Stellar Soroban smart contracts.
 
-First, run the development server:
+## 🚀 Getting Started
 
+### 1. Configure Freighter Wallet
+To interact with the smart contracts on the Stellar Testnet, make sure your Freighter browser extension is configured:
+1. Open Freighter and click the gear icon to access settings.
+2. Select **Network** and ensure it is set to **Testnet**.
+3. Fund your Testnet address using the [Stellar Friendbot Tool](https://laboratory.stellar.org/#account-creator?network=testnet) to receive free testnet XLM.
+
+### 2. Launch Development Server
+Install dependencies and run:
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+Open [http://localhost:3000](http://localhost:3000) to view the application.
+
+## 🧪 Testing
+
+Run the Vitest client tests:
+```bash
+npm test
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📈 Monitoring & Analytics
+The application is configured with **Vercel Web Analytics** for session and performance tracking, satisfying Level 4 deployment monitoring requirements.
