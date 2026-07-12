@@ -69,7 +69,8 @@
   * [Step 4: Configure Frontend](#configure-frontend)
 * [8. Deployed Contract Addresses & Verification](#verification)
 * [9. Caching Strategy](#caching-strategy)
-* [10. Project Media & Screenshots](#screenshots)
+* [10. Error Handling & UX Mapping](#error-handling)
+* [11. Project Media & Screenshots](#screenshots)
 
 ---
 
@@ -313,8 +314,19 @@ The frontend implements an in-memory TTL‑based cache (`client/lib/cache.ts`) t
 
 ---
 
+<a name="error-handling"></a>
+## 🛡️ 10. Error Handling & UX Mapping
+
+The application parses raw, low-level error codes from the Stellar Horizon node and Soroban RPC simulation responses into user-friendly validation alerts:
+* **Freighter Wallet Disconnection:** Caught during action invocations and prompts a notification directing the user to install or unlock the extension.
+* **Signature Rejection:** If a user cancels transaction signing, it prevents application crashes and prints a clear warning: *"Transaction signing was rejected. Please try again."*
+* **Unfunded Testnet Accounts:** Detects if a wallet lacks testnet XLM and advises the user to fund it using the Stellar Friendbot.
+* **Simulation Reverts:** Catches raw Soroban panic triggers (such as time-locked cancellation violations or insufficient listing amounts) and explains the constraint to the user.
+
+---
+
 <a name="screenshots"></a>
-## 🖼️ 10. Project Media & Screenshots
+## 🖼️ 11. Project Media & Screenshots
 
 ### Application UI Dashboard
 <img width="1920" height="1080" alt="Screenshot (300)" src="https://github.com/user-attachments/assets/1f6d9c64-0aff-4224-9a35-5de589d717d8" />
