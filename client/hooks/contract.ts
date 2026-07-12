@@ -52,11 +52,21 @@ const server = new rpc.Server(RPC_URL);
 // Wallet Helpers
 // ============================================================
 
+/**
+ * Checks if the Freighter wallet extension is active, unlocked, and connected to the browser.
+ * @returns {Promise<boolean>} Resolves to true if connected, false otherwise.
+ */
 export async function checkConnection(): Promise<boolean> {
   const result = await isConnected();
   return result.isConnected;
 }
 
+/**
+ * Connects the Freighter wallet extension by requesting browser permissions if not allowed.
+ * Retrieves and returns the public key (Stellar address) of the authorized account.
+ * @throws {Error} If Freighter is not installed or the user rejects the connection request.
+ * @returns {Promise<string>} The Stellar public key of the connected wallet.
+ */
 export async function connectWallet(): Promise<string> {
   const connResult = await isConnected();
   if (!connResult.isConnected) {
@@ -76,6 +86,11 @@ export async function connectWallet(): Promise<string> {
   return address;
 }
 
+/**
+ * Silently checks and retrieves the connected Freighter wallet address.
+ * Does not trigger any browser prompts or throw exceptions if no wallet is connected.
+ * @returns {Promise<string | null>} The public address of the wallet, or null if disconnected or unauthorized.
+ */
 export async function getWalletAddress(): Promise<string | null> {
   try {
     const connResult = await isConnected();
@@ -90,6 +105,7 @@ export async function getWalletAddress(): Promise<string | null> {
     return null;
   }
 }
+
 
 // ============================================================
 // Contract Interaction Helpers
