@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { NETWORK } from "@/hooks/contract";
+import { truncateAddress } from "@/lib/utils";
 
 import { Badge } from "@/components/ui/badge";
 
@@ -99,8 +100,6 @@ export default function Navbar({
     setTimeout(() => setCopied(false), 2000);
   }, [walletAddress]);
 
-  const truncate = (addr: string) => `${addr.slice(0, 4)}...${addr.slice(-4)}`;
-
   return (
     <nav
       className={`sticky top-0 z-50 w-full border-b transition-all duration-300 animate-fade-in-down ${
@@ -150,7 +149,7 @@ export default function Navbar({
                   </div>
                 </div>
                 <span className="font-mono text-xs text-white/70">
-                  {truncate(walletAddress)}
+                  {truncateAddress(walletAddress)}
                 </span>
                 <svg
                   width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
