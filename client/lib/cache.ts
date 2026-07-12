@@ -20,12 +20,18 @@ class MemoryCache {
   get<T = unknown>(key: string): T | undefined {
     const entry = this.store.get(key);
     if (!entry) return undefined;
-    if (Date.now() >= entry.expiresAt) {
+    if (this.isExpired(entry)) {
       this.store.delete(key);
       return undefined;
     }
     return entry.value as T;
   }
+
+  /** Check if a cache entry has exceeded its time-to-live threshold. */
+  private isExpired(entry: CacheEntry): boolean {
+    return Date.now() >= entry.expiresAt;
+  }
+
 
   /** Store a value with an optional TTL (defaults to 30 s). */
   set<T = unknown>(key: string, value: T, ttlMs = DEFAULT_TTL_MS): void {
