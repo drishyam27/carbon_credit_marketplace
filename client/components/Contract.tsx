@@ -17,7 +17,8 @@ import { AnimatedCard } from "@/components/ui/animated-card";
 import { Spotlight } from "@/components/ui/spotlight";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, truncateAddress } from "@/lib/utils";
+import { handleBlockchainError } from "@/lib/errors";
 
 type Tab = "browse" | "list" | "my-credits" | "purchases";
 
@@ -174,7 +175,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
   const [myPurchases, setMyPurchases] = useState<PurchaseData[]>([]);
   const [isLoadingPurchases, setIsLoadingPurchases] = useState(false);
 
-  const truncate = (addr: string) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "";
+  const truncate = (addr: string) => truncateAddress(addr, 6);
 
   const formatAmount = (n: bigint) => {
     return (Number(n) / 1_000_000).toFixed(2); // Assuming 6 decimal places for display
@@ -253,7 +254,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
       loadMyCredits();
       setTimeout(() => setTxStatus(null), 5000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Transaction failed");
+      setError(handleBlockchainError(err));
       setTxStatus(null);
     } finally {
       setIsCreating(false);
@@ -280,7 +281,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
       loadMyPurchases();
       setTimeout(() => setTxStatus(null), 5000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Transaction failed");
+      setError(handleBlockchainError(err));
       setTxStatus(null);
     }
   }, [walletAddress, buyAmount, loadListings, loadMyPurchases]);
@@ -296,7 +297,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
       loadMyCredits();
       setTimeout(() => setTxStatus(null), 5000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Transaction failed");
+      setError(handleBlockchainError(err));
       setTxStatus(null);
     }
   }, [walletAddress, loadMyPurchases, loadMyCredits]);
@@ -312,7 +313,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
       loadListings();
       setTimeout(() => setTxStatus(null), 5000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Transaction failed");
+      setError(handleBlockchainError(err));
       setTxStatus(null);
     }
   }, [walletAddress, loadMyPurchases, loadListings]);
