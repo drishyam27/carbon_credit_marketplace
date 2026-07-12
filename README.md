@@ -34,7 +34,7 @@
 > ### 📊 User Interaction & Feedback Proof (Google Sheet & Form)
 > **[👉 Click Here to Fill out the User Feedback Form 👈](https://docs.google.com/forms/d/e/YOUR_GOOGLE_FORM_ID/viewform?usp=sf_link)**
 > 
-> **[👉 Click Here to View Live Google Spreadsheet of User Responses 👈](https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=sharing)**
+> **[👉 Click Here to View Live Google Spreadsheet of User Responses 👈](https://docs.google.com/spreadsheets/d/1denJyrIjRa26nQd3gJ8qvu1HqctnFFjOlZa3eSr66JM/edit?resourcekey=&gid=1967855370#gid=1967855370)**
 > 
 > *Contains real-world feedback ratings (1-5), constructive suggestions, onboarded user Stellar public keys, and verified testnet transaction hashes showing listing creations, credit purchases, delivery updates, and escrow confirmations.*
 
