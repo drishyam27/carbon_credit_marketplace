@@ -29,6 +29,9 @@ fn setup_test() -> (Env, CarbonMarketplaceClient<'static>, Address, Address, tok
     (env, market_client, admin, token_admin, token_client, token_admin_client)
 }
 
+/// Verifies that a user can buy a fractional amount of credits from a verified listing,
+/// that payment tokens are locked in the contract escrow, and that when the buyer confirms delivery,
+/// funds are released to the seller and the buyer's new fractional credit asset is registered.
 #[test]
 fn test_fractional_purchase_and_escrow() {
     let (env, market, admin, _, token_client, token_admin) = setup_test();
@@ -81,6 +84,7 @@ fn test_fractional_purchase_and_escrow() {
     assert_eq!(new_credit.project_name, String::from_str(&env, "Amazon Reforestation"));
 }
 
+/// Verifies that listing a credit fails (panics) if it has not been verified by the admin registry.
 #[test]
 #[should_panic(expected = "Credit not verified")]
 fn test_cannot_list_unverified() {
@@ -96,6 +100,7 @@ fn test_cannot_list_unverified() {
     market.list_credit(&creator, &credit_id, &50); // Should panic
 }
 
+/// Verifies that cancelling a purchase instantly before the time-lock deadline is rejected and panics.
 #[test]
 #[should_panic(expected = "Deadline has not expired yet")]
 fn test_cannot_cancel_before_deadline() {
