@@ -3,62 +3,99 @@ use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, String,
 };
 
+/// Status representing the audit verification stage of a carbon offset listing.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum VerificationStatus {
+    /// Credit has been listed but not audited by the admin registry yet.
     Pending,
+    /// Credit is verified and eligible for trading.
     Verified,
+    /// Audit failed or project claims were rejected.
     Rejected,
 }
 
+/// Ledger storage keys for the marketplace instance data and persistent records.
 #[contracttype]
 pub enum DataKey {
+    /// Address of the marketplace admin authority.
     Admin,
+    /// Address of the payment token contract (e.g. native XLM or USDC).
     Token,
+    /// Running counter of total credit listings created.
     CreditCount,
+    /// Running counter of total purchase orders processed.
     PurchaseCount,
+    /// Persistent storage lookup key for a Credit registry by ID.
     Credit(u64),
+    /// Persistent storage lookup key for a Purchase order by ID.
     Purchase(u64),
-    /// Tracks the custom carbon‑offset token for the marketplace
+    /// Tracks the custom carbon‑offset token for the marketplace.
     CarbonTokenGlobal,
 }
 
+/// Registry struct storing the profile and inventory of a carbon credit project.
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct Credit {
+    /// Unique auto-incrementing ID.
     pub id: u64,
+    /// Short descriptive name of the reforestation or carbon-reduction initiative.
     pub project_name: String,
-    pub carbon_amount: i128, // Amount in tons
+    /// Total quantity of carbon offset credits (in metric tons).
+    pub carbon_amount: i128,
+    /// Stellar public address of the initial listing author.
     pub creator_address: Address,
+    /// Stellar public address of the current token owner.
     pub owner_address: Address,
+    /// On-chain verification state.
     pub verification_status: VerificationStatus,
+    /// True if the owner has listed these credits for sale on the marketplace.
     pub is_listed: bool,
-    pub price_per_ton: i128, // Price per ton instead of total price
+    /// Price per ton of carbon offset, denominated in payment tokens (stroops).
+    pub price_per_ton: i128,
+    /// Timestamp of when the listing record was written.
     pub timestamp: u64,
 }
 
+/// Escrow status mapping the timeline of a buyer-seller transaction.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum PurchaseStatus {
+    /// Funds are locked in contract escrow, awaiting seller delivery.
     Pending,
+    /// Delivery confirmed by the buyer, funds released to the seller.
     Confirmed,
+    /// Cancelled after time-lock deadline, funds returned to the buyer.
     Cancelled,
+    /// Locked in dispute mode, waiting for admin arbitration.
     Disputed,
+    /// Dispute was resolved and funds settled by the admin.
     Resolved,
 }
 
+/// Ledger representation of a purchase transaction locked in escrow.
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct Purchase {
+    /// Unique auto-incrementing purchase transaction ID.
     pub id: u64,
+    /// The associated carbon credit registry index.
     pub credit_id: u64,
+    /// Public address of the purchasing client.
     pub buyer: Address,
+    /// Public address of the credit merchant.
     pub seller: Address,
+    /// Volume of credits purchased (in metric tons).
     pub amount_purchased: i128,
+    /// Total amount of payment tokens locked in the escrow.
     pub locked_funds: i128,
+    /// Current state of the escrow.
     pub status: PurchaseStatus,
+    /// Timestamp of when the buy transaction was initiated.
     pub timestamp: u64,
-    pub deadline: u64, // Disallows normal cancellation until deadline passes
+    /// Expiration timestamp after which the buyer or seller can cancel the escrow.
+    pub deadline: u64,
 }
 
 #[contract]
